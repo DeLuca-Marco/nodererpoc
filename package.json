@@ -21,6 +21,17 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "localtunnel": "^2.0.0"
+    "@pnp/common": "^2.0.12",
+    "@pnp/logging": "^2.0.12",
+    "@pnp/nodejs": "^2.0.12",
+    "@pnp/nodejs-commonjs": "^2.0.12",
+    "@pnp/pnpjs": "^2.0.12",
+    "@pnp/sp-commonjs": "^2.0.12",
+    "@types/xml2js": "^0.4.7",
+    "esm": "^3.2.25",
+    "fs": "0.0.1-security",
+    "localtunnel": "^2.0.0",
+    "node-fetch": "^2.6.1",
+    "xml2js": "^0.4.23"
   }
 }
