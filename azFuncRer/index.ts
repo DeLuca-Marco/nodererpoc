@@ -1,11 +1,13 @@
 // Credits for idea and implementation example:
 // https://spblog.net/post/2017/09/09/Using-SharePoint-Remote-Event-Receivers-with-Azure-Functions-and-TypeScript
-
+import * as fs from "fs";
 import { Parser } from "xml2js";
 import { sp, SPRest } from "@pnp/sp-commonjs";
 import { Web, IWeb } from "@pnp/sp-commonjs/webs";
 import "@pnp/sp-commonjs/site-users/web";
 import { NodeFetchClient, ProviderHostedRequestContext } from "@pnp/nodejs-commonjs";
+import { fstat } from "fs";
+//import { ProcessEventResponse, ProcessEventResult } from "./models/interfaces";
 
 declare var global: any;
 
@@ -38,8 +40,12 @@ async function processOneWayEvent(eventProperties: any, context: any): Promise<a
     context.log("running asyncrounous event");
     let itemProperties = eventProperties.ItemEventProperties;
     let spAddin = await getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
-    let app = await spAddin.web.currentUser.get();
-    context.log(app.Title);
+    //Leads to infinite Loop - but Works so Asynchronous Event work like a charm
+    // let list = await spAddin.web.lists.getByTitle(eventProperties.ItemEventProperties.ListTitle).items.getById(eventProperties.ItemEventProperties.ListItemId).update(
+    //     {
+    //         Title: "haha"
+    //     }
+    // );
 
     context.res = {
         status: 200,
@@ -50,30 +56,54 @@ async function processOneWayEvent(eventProperties: any, context: any): Promise<a
 }
 
 async function processEvent(eventProperties: any, context: any): Promise<any> {
-    context.log("running synchronous event");   
-    let itemProperties = eventProperties.ItemEventProperties;
-        let spAddin = await getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
-        
-        context.res = {
-            status: 200,
-            body: "",
-        } as any;
+    let processResponse = initializeEventResponse();
+    context.log("running synchronous event");  
 
-        context.done();
+    //currently not necessary in this szenario, but shown examplary
+    let spAddin = await getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
+    processResponse = AddChangedItemProperties(processResponse, "Title", "Changed by RER");
+    processResponse = finalizeEventResponse(processResponse,"Continue","", eventProperties.CorrelationId);
+
+    context.res = {
+        status: 200,
+        headers: {
+            "Content-Type": "text/xml; charset=utf-8"
+        },
+        body: processResponse,
+        isRaw: true
+    } as any;
+    context.log(context);
+    context.done();
+}
+
+function initializeEventResponse() : string
+{
+    return fs.readFileSync("azFuncRer/response.data").toString();
+}
+
+function finalizeEventResponse(processResponse: string, status: string, errorMessage: string, correlationId: string): string
+{
+    if(!errorMessage)
+    {
+        processResponse = processResponse.replace(">###ERRORMESSAGE###", " i:nil=\"true\"/>").replace("</ErrorMessage>","");
+    }
+    return processResponse.replace("###STATUS###",status).replace("###ERRORMESSAGE###", errorMessage).replace("###CORRELATIONID###",correlationId);
+}
+
+function AddChangedItemProperties(processResponse: string, fieldName: string, fieldValue: any): string
+{
+    let itemTempalte: string = fs.readFileSync("azFuncRer/changedItemProperties.data").toString();
+    return processResponse.replace("</ChangedItemProperties>",itemTempalte.replace("###KEY###",fieldName).replace("###VALUE###",fieldValue)+"</ChangedItemProperties>");
 }
 
 function configurePnP(): void {
-    // global.Headers = nodeFetch.Headers;
-    // global.Request = nodeFetch.Request;
-    // global.Response = nodeFetch.Response;
-
     sp.setup({
         sp: {
             fetchClientFactory: () => {
                 return new NodeFetchClient();
             }
         }
-    })
+    });
 }
 
 async function xml2Json(input: string): Promise<any> {
@@ -104,7 +134,6 @@ async function getAddinSP(webUrl: string, contextToken: any) {
 
 async function initializeCtx(webUrl: string, contextToken: any) {
     let spAppToken = contextToken;
-    console.log(spAppToken);
     console.log(webUrl);
     return await ProviderHostedRequestContext.create(webUrl, getAppSettings("ClientId"), getAppSettings("ClientSecret"), spAppToken);
 }

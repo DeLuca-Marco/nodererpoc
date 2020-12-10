@@ -1,6 +1,4 @@
 "use strict";
-// Credits for idea and implementation example:
-// https://spblog.net/post/2017/09/09/Using-SharePoint-Remote-Event-Receivers-with-Azure-Functions-and-TypeScript
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -12,6 +10,9 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.run = void 0;
+// Credits for idea and implementation example:
+// https://spblog.net/post/2017/09/09/Using-SharePoint-Remote-Event-Receivers-with-Azure-Functions-and-TypeScript
+const fs = require("fs");
 const xml2js_1 = require("xml2js");
 const sp_commonjs_1 = require("@pnp/sp-commonjs");
 require("@pnp/sp-commonjs/site-users/web");
@@ -43,11 +44,12 @@ function execute(context, req) {
 }
 function processOneWayEvent(eventProperties, context) {
     return __awaiter(this, void 0, void 0, function* () {
-        context.log("running oneway");
+        context.log("running asyncrounous event");
         let itemProperties = eventProperties.ItemEventProperties;
         let spAddin = yield getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
-        let app = yield spAddin.web.currentUser.get();
-        context.log(app.Title);
+        let list = yield spAddin.web.lists.getByTitle(eventProperties.ItemEventProperties.ListTitle).items.getById(eventProperties.ItemEventProperties.ListItemId).update({
+            Title: "haha"
+        });
         context.res = {
             status: 200,
             body: ""
@@ -57,22 +59,38 @@ function processOneWayEvent(eventProperties, context) {
 }
 function processEvent(eventProperties, context) {
     return __awaiter(this, void 0, void 0, function* () {
-        context.log("running event");
-        let itemProperties = eventProperties.ItemEventProperties;
+        let processResponse = initializeEventResponse();
+        context.log("running synchronous event");
+        //currently not necessary in this szenario, but shown examplary
         let spAddin = yield getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
-        let webTitle = yield (yield spAddin.web.get()).Title;
-        context.log(webTitle);
+        processResponse = AddChangedItemProperties(processResponse, "Title", "Changed by RER");
+        processResponse = finalizeEventResponse(processResponse, "Continue", "", eventProperties.CorrelationId);
         context.res = {
             status: 200,
-            body: ""
+            headers: {
+                "Content-Type": "text/xml; charset=utf-8"
+            },
+            body: processResponse,
+            isRaw: true
         };
+        context.log(context);
         context.done();
     });
 }
+function initializeEventResponse() {
+    return fs.readFileSync("azFuncRer/response.data").toString();
+}
+function finalizeEventResponse(processResponse, status, errorMessage, correlationId) {
+    if (!errorMessage) {
+        processResponse = processResponse.replace(">###ERRORMESSAGE###", " i:nil=\"true\"/>").replace("</ErrorMessage>", "");
+    }
+    return processResponse.replace("###STATUS###", status).replace("###ERRORMESSAGE###", errorMessage).replace("###CORRELATIONID###", correlationId);
+}
+function AddChangedItemProperties(processResponse, fieldName, fieldValue) {
+    let itemTempalte = fs.readFileSync("azFuncRer/changedItemProperties.data").toString();
+    return processResponse.replace("</ChangedItemProperties>", itemTempalte.replace("###KEY###", fieldName).replace("###VALUE###", fieldValue) + "</ChangedItemProperties>");
+}
 function configurePnP() {
-    // global.Headers = nodeFetch.Headers;
-    // global.Request = nodeFetch.Request;
-    // global.Response = nodeFetch.Response;
     sp_commonjs_1.sp.setup({
         sp: {
             fetchClientFactory: () => {
@@ -113,7 +131,6 @@ function getAddinSP(webUrl, contextToken) {
 function initializeCtx(webUrl, contextToken) {
     return __awaiter(this, void 0, void 0, function* () {
         let spAppToken = contextToken;
-        console.log(spAppToken);
         console.log(webUrl);
         return yield nodejs_commonjs_1.ProviderHostedRequestContext.create(webUrl, getAppSettings("ClientId"), getAppSettings("ClientSecret"), spAppToken);
     });
