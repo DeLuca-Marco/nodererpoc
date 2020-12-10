@@ -19,4 +19,4 @@ Azure Functions currently works best with Node 12.x.
 On SharePoint side, it is necessary to register an app principal on [site-url]/_layouts/15/appregnew.aspx, where ClientId and ClientSecret are created. Then on [site-url]/_layouts/15/appinv.aspx it is possible to define the necessary permissions for the "app". Afterwards it is necessary to register the event handler.
 
 # Todos
-Make synchronous events working. Therefore the SPRemoteEventResult object needs to be returned containing the ChangedItemProperties Dictionary. Therefore look what "AfterProperties" Object/Collection looks like.
+Synchronous Event do not work, when trying to update the item itself.
