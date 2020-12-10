@@ -15,6 +15,21 @@ E.g. for PnPJS to work with node on server-side you have to use "@pnp/sp-commonj
 # Node Version for Azure Functions
 Azure Functions currently works best with Node 12.x.
 
+# App Credentials
+The App credentials are stored in "local.settings.json" in the following schema:
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "ClientId": "<GUID>",
+    "ClientSecret": "<SECRET>",
+    "Realm": ""
+  }
+}
+```
+
 # On SharePoint side
 On SharePoint side, it is necessary to register an app principal on [site-url]/_layouts/15/appregnew.aspx, where ClientId and ClientSecret are created. Then on [site-url]/_layouts/15/appinv.aspx it is possible to define the necessary permissions for the "app". Afterwards it is necessary to register the event handler.
 
