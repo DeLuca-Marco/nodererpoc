@@ -40,4 +40,5 @@ venv.bak/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*$py.classExampleFiles/ExampleRequestFromSPO.html
+*$py.class
+ExampleFiles/ExampleRequestFromSPO.html
