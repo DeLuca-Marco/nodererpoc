@@ -45,11 +45,28 @@ function execute(context, req) {
 function processOneWayEvent(eventProperties, context) {
     return __awaiter(this, void 0, void 0, function* () {
         context.log("running asyncrounous event");
+        //constants
+        const defaultGroupName = "Besitzer von Mod Spielwiese";
+        const fieldNamePermissionIndicator = "permTag";
+        let foundGroups = new Array();
         let itemProperties = eventProperties.ItemEventProperties;
         let spAddin = yield getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
-        let list = yield spAddin.web.lists.getByTitle(eventProperties.ItemEventProperties.ListTitle).items.getById(eventProperties.ItemEventProperties.ListItemId).update({
-            Title: "haha"
-        });
+        //Break files Role inheritance and set custom permissions
+        let defaultGroup = yield GetGroupByName(spAddin, defaultGroupName);
+        let item = yield spAddin.web.lists.getByTitle(eventProperties.ItemEventProperties.ListTitle).items.getById(eventProperties.ItemEventProperties.ListItemId);
+        let fieldValues = yield item.fieldValuesAsText();
+        let foundgroupNames = fieldValues[fieldNamePermissionIndicator].split(", ");
+        for (let groupName of foundgroupNames) {
+            context.log(groupName);
+            foundGroups.push(yield GetGroupByName(spAddin, groupName + " Users"));
+        }
+        yield item.breakRoleInheritance(false);
+        //add default group
+        yield item.roleAssignments.add(defaultGroup.Id, 1073741829); //Full Control
+        for (let foundGroup of foundGroups) {
+            //add group defined by metadata
+            yield item.roleAssignments.add(foundGroup.Id, 1073741826); //Read
+        }
         context.res = {
             status: 200,
             body: ""
@@ -75,6 +92,11 @@ function processEvent(eventProperties, context) {
         };
         context.log(context);
         context.done();
+    });
+}
+function GetGroupByName(reqObj, name) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return yield reqObj.web.siteGroups.getByName(name).get();
     });
 }
 function initializeEventResponse() {

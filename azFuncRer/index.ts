@@ -2,7 +2,7 @@
 // https://spblog.net/post/2017/09/09/Using-SharePoint-Remote-Event-Receivers-with-Azure-Functions-and-TypeScript
 import * as fs from "fs";
 import { Parser } from "xml2js";
-import { sp, SPRest } from "@pnp/sp-commonjs";
+import { ISiteGroupInfo, sp, SPRest } from "@pnp/sp-commonjs";
 import { Web, IWeb } from "@pnp/sp-commonjs/webs";
 import "@pnp/sp-commonjs/site-users/web";
 import { NodeFetchClient, ProviderHostedRequestContext } from "@pnp/nodejs-commonjs";
@@ -38,14 +38,32 @@ async function execute(context: any, req: any)
 
 async function processOneWayEvent(eventProperties: any, context: any): Promise<any> {
     context.log("running asyncrounous event");
+    //constants
+    const defaultGroupName: string = "Besitzer von Mod Spielwiese";
+    const fieldNamePermissionIndicator: string = "permTag"; 
+    let foundGroups: Array<ISiteGroupInfo> = new Array<ISiteGroupInfo>();
+
     let itemProperties = eventProperties.ItemEventProperties;
     let spAddin = await getAddinSP(eventProperties.ItemEventProperties.WebUrl, eventProperties.ContextToken);
-    //Leads to infinite Loop - but Works so Asynchronous Event work like a charm
-    // let list = await spAddin.web.lists.getByTitle(eventProperties.ItemEventProperties.ListTitle).items.getById(eventProperties.ItemEventProperties.ListItemId).update(
-    //     {
-    //         Title: "haha"
-    //     }
-    // );
+    //Break files Role inheritance and set custom permissions
+    let defaultGroup = await GetGroupByName(spAddin, defaultGroupName);
+    let item = await spAddin.web.lists.getByTitle(eventProperties.ItemEventProperties.ListTitle).items.getById(eventProperties.ItemEventProperties.ListItemId);
+    let fieldValues = await item.fieldValuesAsText();
+    let foundgroupNames: Array<string> = fieldValues[fieldNamePermissionIndicator].split(", ");
+    for(let groupName of foundgroupNames)
+    {
+        context.log(groupName);
+        foundGroups.push(await GetGroupByName(spAddin, groupName + " Users"));
+    }
+
+    await item.breakRoleInheritance(false);
+    //add default group
+    await item.roleAssignments.add(defaultGroup.Id, 1073741829); //Full Control
+    for(let foundGroup of foundGroups)
+    {
+        //add group defined by metadata
+        await item.roleAssignments.add(foundGroup.Id, 1073741826); //Read
+    }
 
     context.res = {
         status: 200,
@@ -74,6 +92,10 @@ async function processEvent(eventProperties: any, context: any): Promise<any> {
     } as any;
     context.log(context);
     context.done();
+}
+
+async function GetGroupByName(reqObj: SPRest, name: string) {
+    return await reqObj.web.siteGroups.getByName(name).get();
 }
 
 function initializeEventResponse() : string
